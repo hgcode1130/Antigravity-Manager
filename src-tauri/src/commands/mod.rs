@@ -162,11 +162,25 @@ pub async fn load_config() -> Result<AppConfig, String> {
 
 /// 保存配置
 #[tauri::command]
-pub async fn save_config(app: tauri::AppHandle, config: AppConfig) -> Result<(), String> {
+pub async fn save_config(
+    app: tauri::AppHandle, 
+    proxy_state: tauri::State<'_, crate::commands::proxy::ProxyServiceState>,
+    config: AppConfig
+) -> Result<(), String> {
     modules::save_app_config(&config)?;
     
     // 通知托盘配置已更新
     let _ = app.emit("config://updated", ());
+
+    // 热更新正在运行的服务
+    let instance_lock = proxy_state.instance.read().await;
+    if let Some(instance) = instance_lock.as_ref() {
+        // 更新模型映射
+        instance.axum_server.update_mapping(config.proxy.anthropic_mapping.clone()).await;
+        // 更新上游代理
+        instance.axum_server.update_proxy(config.proxy.upstream_proxy.clone()).await;
+        tracing::info!("已同步热更新反代服务配置");
+    }
     
     Ok(())
 }

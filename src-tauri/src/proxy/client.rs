@@ -11,9 +11,12 @@ pub struct GeminiClient {
 }
 
 impl GeminiClient {
-    pub fn new(timeout_secs: u64) -> Self {
+    pub fn new(
+        timeout_secs: u64, 
+        proxy_config: Option<crate::proxy::config::UpstreamProxyConfig>
+    ) -> Self {
         Self {
-            client: crate::utils::http::create_client(timeout_secs),
+            client: crate::utils::http::create_client_with_proxy(timeout_secs, proxy_config),
         }
     }
     

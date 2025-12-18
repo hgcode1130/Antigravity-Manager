@@ -1,4 +1,3 @@
-use reqwest::Client;
 use serde_json::Value;
 
 /// 使用 Antigravity 的 loadCodeAssist API 获取 project_id

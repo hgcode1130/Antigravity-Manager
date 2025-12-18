@@ -8,7 +8,7 @@
   
   <p>
     <a href="https://github.com/lbjlaq/Antigravity-Manager">
-      <img src="https://img.shields.io/badge/version-v3.1.0-blue.svg" alt="Version">
+      <img src="https://img.shields.io/badge/version-v3.1.1-blue.svg" alt="Version">
     </a>
     <img src="https://img.shields.io/badge/Tauri-v2-orange?style=flat-square" alt="Tauri">
     <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square" alt="React">
@@ -165,6 +165,30 @@ claude "write a quicksort in Python"
 > 💡 **Tip**: The proxy supports pass-through for all official Google/Anthropic model IDs.
 
 ## 🔄 Changelog
+
+### v3.1.1 (2025-12-18)
+
+#### 🌐 Global Upstream Proxy Support
+- **System-wide Proxy Integration**: Added support for global upstream proxies (HTTP/SOCKS5). When enabled, all outgoing requests (API proxy, token refresh, quota checks, update checks) are routed through the configured proxy.
+- **One-Click Hot-Reloading**: 
+  - Proxy settings and model mappings take effect **instantly** upon saving.
+  - The running proxy server automatically reloads configuration without requiring a restart.
+- **Backend Architecture Optimization**: 
+  - Centralized HTTP client management for improved connection stability.
+  - Thread-safe dynamic configuration sharing via `Arc<RwLock>`.
+- **UI Improvements**: Added a dedicated "Proxy" tab in Settings for better configuration management.
+
+#### 🧹 Code Quality & Cleanup
+- Fixed compiler warnings regarding unused fields in `server.rs`.
+- Removed redundant code and outdated imports to improve performance.
+
+### v3.1.0 (2025-12-18)
+
+#### 🔧 API Proxy Optimizations
+- **403 Error Smart Handling**: Instantly identifies and marks accounts with 403 Forbidden, no more retries
+  - Auto-marks as "forbidden" status
+  - Auto-skips 403 accounts during batch refresh
+  - Saves 3+ seconds response time
 
 ### v3.0.2 (2025-12-17)
 

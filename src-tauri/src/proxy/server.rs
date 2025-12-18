@@ -18,13 +18,14 @@ pub struct AppState {
     pub anthropic_mapping: Arc<tokio::sync::RwLock<std::collections::HashMap<String, String>>>,
     pub request_timeout: u64,  // API 请求超时(秒)
     pub thought_signature_map: Arc<tokio::sync::Mutex<std::collections::HashMap<String, String>>>, // 思维链签名映射 (ID -> Signature)
-    pub upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    pub upstream_proxy: Arc<tokio::sync::RwLock<crate::proxy::config::UpstreamProxyConfig>>,
 }
 
 /// Axum 服务器实例
 pub struct AxumServer {
     shutdown_tx: Option<oneshot::Sender<()>>,
     mapping_state: Arc<tokio::sync::RwLock<std::collections::HashMap<String, String>>>,
+    proxy_state: Arc<tokio::sync::RwLock<crate::proxy::config::UpstreamProxyConfig>>,
 }
 
 impl AxumServer {
@@ -33,6 +34,13 @@ impl AxumServer {
         let mut mapping = self.mapping_state.write().await;
         *mapping = new_mapping;
         tracing::info!("模型映射已热更新");
+    }
+
+    /// 更新代理配置
+    pub async fn update_proxy(&self, new_config: crate::proxy::config::UpstreamProxyConfig) {
+        let mut proxy = self.proxy_state.write().await;
+        *proxy = new_config;
+        tracing::info!("上游代理配置已热更新");
     }
     /// 启动 Axum 服务器
     pub async fn start(
@@ -43,13 +51,14 @@ impl AxumServer {
         upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
     ) -> Result<(Self, tokio::task::JoinHandle<()>), String> {
         let mapping_state = Arc::new(tokio::sync::RwLock::new(anthropic_mapping));
+        let proxy_state = Arc::new(tokio::sync::RwLock::new(upstream_proxy));
 
         let state = AppState {
             token_manager,
             anthropic_mapping: mapping_state.clone(),
             request_timeout,
             thought_signature_map: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
-            upstream_proxy,
+            upstream_proxy: proxy_state.clone(),
         };
         
         // 构建路由
@@ -74,6 +83,7 @@ impl AxumServer {
         let server_instance = Self {
             shutdown_tx: Some(shutdown_tx),
             mapping_state,
+            proxy_state,
         };
         
         // 在新任务中启动服务器
@@ -193,7 +203,8 @@ async fn handle_image_stream_request(
     request: Arc<converter::OpenAIChatRequest>,
     token: crate::proxy::token_manager::ProxyToken,
 ) -> RequestResult {
-    let client = GeminiClient::new(state.request_timeout);
+    let proxy_config = state.upstream_proxy.read().await.clone();
+    let client = GeminiClient::new(state.request_timeout, Some(proxy_config));
     let model = request.model.clone();
     
     let project_id = match get_project_id(&token) {
@@ -274,7 +285,8 @@ async fn handle_stream_request(
     request: Arc<converter::OpenAIChatRequest>,
     token: crate::proxy::token_manager::ProxyToken,
 ) -> RequestResult {
-    let client = GeminiClient::new(state.request_timeout);
+    let proxy_config = state.upstream_proxy.read().await.clone();
+    let client = GeminiClient::new(state.request_timeout, Some(proxy_config));
     
     let project_id = match get_project_id(&token) {
         Ok(id) => id,
@@ -311,7 +323,8 @@ async fn handle_non_stream_request(
     request: Arc<converter::OpenAIChatRequest>,
     token: crate::proxy::token_manager::ProxyToken,
 ) -> RequestResult {
-    let client = GeminiClient::new(state.request_timeout);
+    let proxy_config = state.upstream_proxy.read().await.clone();
+    let client = GeminiClient::new(state.request_timeout, Some(proxy_config));
     
     let project_id = match get_project_id(&token) {
         Ok(id) => id,
@@ -602,7 +615,8 @@ async fn anthropic_messages_handler(
 
         // 2. 发起请求
         // Helper logic inline to support retries
-        let client = GeminiClient::new(state.request_timeout);
+        let proxy_config = state.upstream_proxy.read().await.clone();
+        let client = GeminiClient::new(state.request_timeout, Some(proxy_config));
         let project_id_result = get_project_id(&token);
         
         if let Err(e) = project_id_result {

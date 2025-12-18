@@ -8,7 +8,7 @@
   
   <p>
     <a href="https://github.com/lbjlaq/Antigravity-Manager">
-      <img src="https://img.shields.io/badge/Version-3.1.0-blue?style=flat-square" alt="Version">
+      <img src="https://img.shields.io/badge/Version-3.1.1-blue?style=flat-square" alt="Version">
     </a>
     <img src="https://img.shields.io/badge/Tauri-v2-orange?style=flat-square" alt="Tauri">
     <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square" alt="React">
@@ -193,6 +193,22 @@ claude "用 Python 写一个快速排序算法"
 
 
 ## 🔄 版本更新
+
+### v3.1.1 (2025-12-18)
+
+#### 🌐 全局上游代理支持
+- **系统级代理集成**：新增全局上游代理设置，支持 HTTP 和 SOCKS5 协议。开启后，应用内所有的外部网络请求（包含 API 反代、Token 刷新、配额查询、更新检测等）都将通过配置的代理进行。
+- **一键热重载 (Hot-Reloading)**：
+  - 修改代理配置或模型映射后点击保存即可**实时生效**。
+  - 正在运行的反代服务会自动加载新配置，无需重启服务即可应用。
+- **后端架构优化**：
+  - 集中管理 HTTP 客户端创建逻辑，提升连接稳定性。
+  - 采用 `Arc<RwLock>` 实现配置的线程安全共享与动态更新。
+- **UI 体验升级**：在“设置”页面中新增独立的“代理设置”标签页，与“API 反代”配置清晰分离。
+
+#### 🧹 代码质量与优化
+- 解决了 `server.rs` 中 `upstream_proxy` 字段未使用的编译器警告。
+- 清理了冗余代码与过时的导入，提升应用运行效率。
 
 ### v3.1.0 (2025-12-18)
 
