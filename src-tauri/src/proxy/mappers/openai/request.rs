@@ -140,18 +140,82 @@ pub fn transform_openai_request(request: &OpenAIRequest, project_id: &str, mappe
                 }
             }));
         } else {
-            // Regular Text Content
-            let content_str = msg.content.as_ref().map(|v| {
-                if v.is_string() { v.as_str().unwrap().to_string() }
-                else { v.to_string() }
-            }).unwrap_or_default();
-            if !content_str.is_empty() {
-                // FORCE TOOL USE: Append reminder to user messages to prevent hallucination
-                if role == "user" {
-                    let reminder = "\n\n(SYSTEM REMINDER: You MUST use the 'shell' tool to perform this action. Do not simply state it is done.)";
-                    parts.push(json!({ "text": format!("{}{}", content_str, reminder) }));
-                } else {
-                    parts.push(json!({ "text": content_str }));
+            // Regular Text Content - 支持文本和图片
+            if let Some(content) = &msg.content {
+                // 检查是否是数组格式 (OpenAI 多模态消息)
+                if let Some(content_arr) = content.as_array() {
+                    for item in content_arr {
+                        if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
+                            match item_type {
+                                "text" => {
+                                    if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                                        if !text.is_empty() {
+                                            if role == "user" {
+                                                let reminder = "\n\n(SYSTEM REMINDER: You MUST use the 'shell' tool to perform this action. Do not simply state it is done.)";
+                                                parts.push(json!({ "text": format!("{}{}", text, reminder) }));
+                                            } else {
+                                                parts.push(json!({ "text": text }));
+                                            }
+                                        }
+                                    }
+                                }
+                                "image_url" => {
+                                    // OpenAI 格式: {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+                                    if let Some(img_obj) = item.get("image_url") {
+                                        if let Some(url) = img_obj.get("url").and_then(|v| v.as_str()) {
+                                            // 解析 data URL: data:image/png;base64,xxxxx
+                                            if url.starts_with("data:") {
+                                                if let Some(comma_pos) = url.find(',') {
+                                                    let header = &url[5..comma_pos]; // 跳过 "data:"
+                                                    let base64_data = &url[comma_pos + 1..];
+                                                    
+                                                    // 解析 MIME 类型
+                                                    let mime_type = if let Some(semi_pos) = header.find(';') {
+                                                        &header[..semi_pos]
+                                                    } else {
+                                                        header
+                                                    };
+                                                    
+                                                    tracing::info!("[OpenAI→Gemini] 转换图片: MIME={}, 数据长度={}", mime_type, base64_data.len());
+                                                    
+                                                    // 转换为 Gemini inlineData 格式
+                                                    parts.push(json!({
+                                                        "inlineData": {
+                                                            "mimeType": mime_type,
+                                                            "data": base64_data
+                                                        }
+                                                    }));
+                                                }
+                                            } else if url.starts_with("http") {
+                                                // 网络图片 URL - 使用 fileData 格式
+                                                tracing::info!("[OpenAI→Gemini] 网络图片 URL: {}", url);
+                                                parts.push(json!({
+                                                    "fileData": {
+                                                        "fileUri": url,
+                                                        "mimeType": "image/jpeg"
+                                                    }
+                                                }));
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    tracing::warn!("[OpenAI→Gemini] 未知内容类型: {}", item_type);
+                                }
+                            }
+                        }
+                    }
+                } else if content.is_string() {
+                    // 简单字符串格式
+                    let content_str = content.as_str().unwrap();
+                    if !content_str.is_empty() {
+                        if role == "user" {
+                            let reminder = "\n\n(SYSTEM REMINDER: You MUST use the 'shell' tool to perform this action. Do not simply state it is done.)";
+                            parts.push(json!({ "text": format!("{}{}", content_str, reminder) }));
+                        } else {
+                            parts.push(json!({ "text": content_str }));
+                        }
+                    }
                 }
             }
         }
