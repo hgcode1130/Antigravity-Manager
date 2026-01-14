@@ -1,5 +1,5 @@
 # Antigravity Tools 🚀
-> 专业的 AI 账号管理与协议反代系统 (v3.3.30)
+> 专业的 AI 账号管理与协议反代系统 (v3.3.31)
 <div align="center">
   <img src="public/icon.png" alt="Antigravity Logo" width="120" height="120" style="border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
 
@@ -8,7 +8,7 @@
   
   <p>
     <a href="https://github.com/lbjlaq/Antigravity-Manager">
-      <img src="https://img.shields.io/badge/Version-3.3.30-blue?style=flat-square" alt="Version">
+      <img src="https://img.shields.io/badge/Version-3.3.31-blue?style=flat-square" alt="Version">
     </a>
     <img src="https://img.shields.io/badge/Tauri-v2-orange?style=flat-square" alt="Tauri">
     <img src="https://img.shields.io/badge/Backend-Rust-red?style=flat-square" alt="Rust">
@@ -205,6 +205,14 @@ print(response.choices[0].message.content)
 ## 📝 开发者与社区
 
 *   **版本演进 (Changelog)**:
+    *   **v3.3.31 (2026-01-14)**:
+        - **配额保护失效修复 (Fix Issue #631)**:
+            - **内存状态同步**: 修复了加载账号触发配额保护时，内存状态未立即同步的问题，确保保护机制即时生效。
+            - **全场景覆盖**: 在“粘性会话 (Sticky Session)”和“60秒锁定 (60s Window Lock)”逻辑中补充了配额保护检查，防止受限账号被错误复用。
+            - **代码优化**: 修复了 `token_manager.rs` 中的部分编译警告。
+        - **Claude 工具调用重复报错修复 (Fix Issue #632)**:
+            - **弹性修复优化**: 改进了 `Elastic-Recovery` 逻辑，在注入占位结果前增加全量消息 ID 预扫描，彻底避免了 `Found multiple tool_result blocks with id` 错误。
+            - **Anthropic 协议对齐**: 确保生成的请求包严格符合 Anthropic 对工具调用 ID 唯一性的要求。
     *   **v3.3.30 (2026-01-14)**:
         - **模型级配额保护 (Issue #621)**:
             - **隔离优化**: 解决了因单个模型配额耗尽而禁用整个账号的问题。现在配额保护仅针对受限的具体模型，账号仍可处理其他模型的请求。

@@ -685,6 +685,20 @@ fn build_contents(
     let mut previous_was_tool_result = false;
 
     let _msg_count = messages.len();
+
+    // [FIX #632] Pre-scan all messages to identify all tool_result IDs that ALREADY exist in the conversation.
+    // This prevents Elastic-Recovery from injecting duplicate results if they are present later in the chain.
+    let mut existing_tool_result_ids = std::collections::HashSet::new();
+    for msg in messages {
+        if let MessageContent::Array(blocks) = &msg.content {
+            for block in blocks {
+                if let ContentBlock::ToolResult { tool_use_id, .. } = block {
+                    existing_tool_result_ids.insert(tool_use_id.clone());
+                }
+            }
+        }
+    }
+
     for (_i, msg) in messages.iter().enumerate() {
         let role = if msg.role == "assistant" {
             // Proactive Tool Chain Repair:
@@ -694,23 +708,27 @@ fn build_contents(
             if !pending_tool_use_ids.is_empty() {
                 tracing::warn!("[Elastic-Recovery] Detected interrupted tool chain (Assistant -> Assistant). Injecting synthetic User message for IDs: {:?}", pending_tool_use_ids);
                 
-                let synthetic_parts: Vec<serde_json::Value> = pending_tool_use_ids.iter().map(|id| {
-                    let name = tool_id_to_name.get(id).cloned().unwrap_or(id.clone());
-                    json!({
-                        "functionResponse": {
-                            "name": name,
-                            "response": {
-                                "result": "Tool execution interrupted. No result provided."
-                            },
-                            "id": id
-                        }
-                    })
-                }).collect();
+                let synthetic_parts: Vec<serde_json::Value> = pending_tool_use_ids.iter()
+                    .filter(|id| !existing_tool_result_ids.contains(*id)) // [FIX #632] Only inject if ID is truly missing
+                    .map(|id| {
+                        let name = tool_id_to_name.get(id).cloned().unwrap_or(id.clone());
+                        json!({
+                            "functionResponse": {
+                                "name": name,
+                                "response": {
+                                    "result": "Tool execution interrupted. No result provided."
+                                },
+                                "id": id
+                            }
+                        })
+                    }).collect();
 
-                contents.push(json!({
-                    "role": "user",
-                    "parts": synthetic_parts
-                }));
+                if !synthetic_parts.is_empty() {
+                    contents.push(json!({
+                        "role": "user",
+                        "parts": synthetic_parts
+                    }));
+                }
                 // Clear pending IDs as we have handled them
                 pending_tool_use_ids.clear();
             }
